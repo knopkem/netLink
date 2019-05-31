@@ -44,8 +44,12 @@ endif()
 
 add_executable(example_tcp ${EXAMPLES_DIR}/tcp.cpp)
 add_executable(example_udp ${EXAMPLES_DIR}/udp.cpp)
+add_executable(udpClient ${EXAMPLES_DIR}/udpClient.cpp)
+add_executable(udpServer ${EXAMPLES_DIR}/udpServer.cpp)
 target_link_libraries(example_tcp shared)
 target_link_libraries(example_udp shared)
+target_link_libraries(udpClient shared)
+target_link_libraries(udpServer shared)
 
 file(GLOB INCLUDE_HEADERS "include/*.h")
 install(FILES ${INCLUDE_HEADERS} DESTINATION include/${CMAKE_PROJECT_NAME})

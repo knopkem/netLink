@@ -16,6 +16,8 @@
 #include <iostream>
 #include "../include/netLink.h"
 
+bool responseReceived = false;
+
 int main(int argc, char** argv) {
     #ifdef WINVER
     netLink::init();
@@ -25,16 +27,24 @@ int main(int argc, char** argv) {
 
     // Define a callback, fired when a socket receives data
     socketManager.onReceiveMsgPack = [](netLink::SocketManager* manager, std::shared_ptr<netLink::Socket> socket, std::unique_ptr<MsgPack::Element> element) {
-        // hostRemote and portRemote are now set to the origin of the last received message
-        std::cout << "Received data from " << socket->hostRemote << ":" << socket->portRemote << ": " << *element << std::endl;
+        std::stringstream buffer;
+        buffer << *element;
+        std::string str("\"server_response\"");
+        if (buffer.str().compare(str) == 0 && !responseReceived) {
+            std::cout << socket->hostRemote << std::endl;
+            responseReceived = true;
+        }
+        else {
+            std::cout << "ignoring invalid message: " << *element << " expected: " << str << std::endl;
+        }
     };
 
     // Alloc a new socket and insert it into the SocketManager
     std::shared_ptr<netLink::Socket> socket = socketManager.newMsgPackSocket();
 
     try {
-        // Init socket as UDP listening to all incoming adresses (let the system choose IPv4 or IPv6) on port 3824
-        socket->initAsUdpPeer("*", 3824);
+        // Init socket as UDP listening to all incoming adresses (IPv4) on port 3824
+        socket->initAsUdpPeer("0.0.0.0", 3824);
     } catch(netLink::Exception exc) {
         (void)exc;
         std::cout << "Address is already in use" << std::endl;
@@ -42,9 +52,7 @@ int main(int argc, char** argv) {
     }
 
     // Define the destination for the next sent message (depending on the choosen IP version)
-    bool isIp4 = (socket->getIPVersion() == netLink::Socket::IPv4);
-    std::cout << isIp4 << std::endl;
-    socket->hostRemote = isIp4 ? "224.0.0.100" : "FF02:0001::";
+    socket->hostRemote = "224.0.0.100";
     socket->portRemote = socket->portLocal;
 
     // Join the multicast group to receive messages from the given address
@@ -52,18 +60,10 @@ int main(int argc, char** argv) {
 
     // Prepare a MsgPack encoded message
     netLink::MsgPackSocket& msgPackSocket = *static_cast<netLink::MsgPackSocket*>(socket.get());
-    msgPackSocket << MsgPack::Factory("Hello, Multicast Group!");
-    msgPackSocket << MsgPack__Factory(ArrayHeader(3));
-    msgPackSocket << MsgPack__Factory(MapHeader(2));
-    msgPackSocket << MsgPack::Factory("Boolean");
-    msgPackSocket << MsgPack::Factory(true);
-    msgPackSocket << MsgPack::Factory("Number");
-    msgPackSocket << MsgPack::Factory(2487.348);
-    msgPackSocket << MsgPack__Factory(ArrayHeader(0));
-    msgPackSocket << MsgPack::Factory();
+    msgPackSocket << MsgPack::Factory("client_request");
 
     // Let the SocketManager poll from all sockets, events will be triggered here
-    while(true)
+    while(!responseReceived)
         socketManager.listen();
 
     return 0;
