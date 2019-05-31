@@ -14,6 +14,8 @@
 */
 
 #include <iostream>
+#include <chrono>
+#include <ctime>
 #include "../include/netLink.h"
 
 bool responseReceived = false;
@@ -63,8 +65,14 @@ int main(int argc, char** argv) {
     msgPackSocket << MsgPack::Factory("client_request");
 
     // Let the SocketManager poll from all sockets, events will be triggered here
-    while(!responseReceived)
+
+    auto start = std::chrono::system_clock::now();
+    while (!responseReceived) {
         socketManager.listen();
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> duration_seconds = (end - start);
+        if (duration_seconds.count() > 3) return 1;
+    }
 
     return 0;
 }
