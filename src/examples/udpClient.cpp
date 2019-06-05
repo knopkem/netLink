@@ -17,8 +17,11 @@
 #include <chrono>
 #include <ctime>
 #include "../include/netLink.h"
+#include "../include/json.hpp"
+using json = nlohmann::json;
 
 bool responseReceived = false;
+
 
 int main(int argc, char** argv) {
     #ifdef WINVER
@@ -31,13 +34,15 @@ int main(int argc, char** argv) {
     socketManager.onReceiveMsgPack = [](netLink::SocketManager* manager, std::shared_ptr<netLink::Socket> socket, std::unique_ptr<MsgPack::Element> element) {
         std::stringstream buffer;
         buffer << *element;
-        std::string str("\"server_response\"");
-        if (buffer.str().compare(str) == 0 && !responseReceived) {
-            std::cout << socket->hostRemote << std::endl;
+        auto j = json::parse(buffer);
+        std::string ident = j["Identifier"].get<std::string>();
+        if (ident.compare("ServerResponse") == 0) {
+            std::string databaseLocation = j["DatabaseLocation"].get<std::string>();
+            std::cout << "#" << socket->hostRemote << "#" << databaseLocation << std::endl;
             responseReceived = true;
         }
         else {
-            std::cout << "ignoring invalid message: " << *element << " expected: " << str << std::endl;
+            //std::cout << "ignoring invalid message: " << *element << std::endl;
         }
     };
 
@@ -62,7 +67,9 @@ int main(int argc, char** argv) {
 
     // Prepare a MsgPack encoded message
     netLink::MsgPackSocket& msgPackSocket = *static_cast<netLink::MsgPackSocket*>(socket.get());
-    msgPackSocket << MsgPack::Factory("client_request");
+    msgPackSocket << MsgPack__Factory(MapHeader(1));
+    msgPackSocket << MsgPack::Factory("Identifier");
+    msgPackSocket << MsgPack::Factory("ClientRequest");
 
     // Let the SocketManager poll from all sockets, events will be triggered here
 

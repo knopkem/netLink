@@ -15,10 +15,19 @@
 
 #include <iostream>
 #include "../include/netLink.h"
+#include "../include/json.hpp"
+using json = nlohmann::json;
 
 bool responseReceived = false;
+std::string databaseLocation;
 
 int main(int argc, char** argv) {
+    if (argc < 2) {
+        std::cout << "usage: udpServer [databaseLocation]" << std::endl;
+        return 0;
+    }
+    databaseLocation = argv[1];
+
 #ifdef WINVER
     netLink::init();
 #endif
@@ -28,16 +37,22 @@ int main(int argc, char** argv) {
     // Define a callback, fired when a socket receives data
     socketManager.onReceiveMsgPack = [](netLink::SocketManager* manager, std::shared_ptr<netLink::Socket> socket, std::unique_ptr<MsgPack::Element> element) {
         std::stringstream buffer;
-        std::string str("\"client_request\"");
         buffer << *element;
-        if (buffer.str().compare(str) == 0) {
+        auto j = json::parse(buffer);
+        std::string ident = j["Identifier"].get<std::string>();
+
+        if (ident.compare("ClientRequest") == 0) {
             std::cout << "request received, sending response" << std::endl;
             socket->hostRemote = "224.0.0.100";
             socket->portRemote = socket->portLocal;
             netLink::MsgPackSocket& msgPackSocket = *static_cast<netLink::MsgPackSocket*>(socket.get());
-            msgPackSocket << MsgPack::Factory("server_response");
+            msgPackSocket << MsgPack__Factory(MapHeader(2));
+            msgPackSocket << MsgPack::Factory("Identifier");
+            msgPackSocket << MsgPack::Factory("ServerResponse");
+            msgPackSocket << MsgPack::Factory("DatabaseLocation");
+            msgPackSocket << MsgPack::Factory(databaseLocation);
         } else {
-            std::cout << "ignoring invalid message: " <<*element << " expected: " << str << std::endl;
+            // std::cout << "ignoring invalid message: " <<*element << std::endl;
         }
     };
 
